@@ -5,10 +5,8 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, FolderKanban, CheckSquare, Target,
   Send, TrendingUp, DollarSign, FileText, Video, Star,
-  BarChart2, Activity, Settings, LogOut, Zap
+  BarChart2, Activity, Settings, Zap
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 
 const nav = [
   { label: 'WORKSPACE', items: [
@@ -43,28 +41,19 @@ const nav = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const router = useRouter()
-
-  async function handleSignOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-56 border-r border-slate-800 bg-slate-950 flex flex-col z-40">
-      {/* Logo */}
       <div className="flex items-center gap-2.5 px-4 py-4 border-b border-slate-800">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600">
           <Zap className="h-4 w-4 text-white" />
         </div>
         <div>
           <p className="text-sm font-bold text-slate-100 leading-none">Ragon OS</p>
-          <p className="text-xs text-slate-500 leading-none mt-0.5">Business Dashboard</p>
+          <p className="text-xs text-slate-500 leading-none mt-0.5">Ragon Solutions</p>
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {nav.map((section) => (
           <div key={section.label}>
@@ -94,17 +83,6 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-
-      {/* Sign out */}
-      <div className="px-2 py-3 border-t border-slate-800">
-        <button
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-slate-500 hover:text-red-400 hover:bg-slate-800/60 transition-colors"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </button>
-      </div>
     </aside>
   )
 }
