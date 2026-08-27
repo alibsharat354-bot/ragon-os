@@ -1,12 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getAll, insert, logActivity } from '@/lib/store'
+import { getAll, insert, remove, logActivity } from '@/lib/store'
 import { Header } from '@/components/layout/header'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Input, Label, Select } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Plus, TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
+import { Plus, TrendingUp, TrendingDown, DollarSign, Trash2 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 const INCOME_CATS = ['Client Payment','Fiverr','Upwork','UGC','Other']
@@ -15,10 +15,11 @@ const EXPENSE_CATS = ['Studio','Models','Editors','Contractors','Software','Equi
 export default function MoneyPage() {
   const [payments, setPayments] = useState<any[]>([])
   const [expenses, setExpenses] = useState<any[]>([])
+  const [clients, setClients] = useState<any[]>([])
   const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0,7))
   const [showIncome, setShowIncome] = useState(false)
   const [showExpense, setShowExpense] = useState(false)
-  const [iForm, setIForm] = useState({ amount:'', category:'Client Payment', date:new Date().toISOString().split('T')[0], notes:'' })
+  const [iForm, setIForm] = useState({ amount:'', category:'Client Payment', client_id:'', date:new Date().toISOString().split('T')[0], notes:'' })
   const [eForm, setEForm] = useState({ amount:'', category:'Other', description:'', date:new Date().toISOString().split('T')[0] })
 
   function getRange(ym:string):[string,string] {
@@ -30,21 +31,40 @@ export default function MoneyPage() {
     const [start,end] = getRange(monthFilter)
     setPayments(getAll<any>('payments').filter(p=>p.payment_date>=start&&p.payment_date<=end))
     setExpenses(getAll<any>('expenses').filter(e=>e.date>=start&&e.date<=end))
+    setClients(getAll('clients'))
   }
 
   useEffect(() => { load(); window.addEventListener('ragon-data-update',load); return ()=>window.removeEventListener('ragon-data-update',load) }, [monthFilter])
 
   function saveIncome() {
-    insert('payments',{ amount:Number(iForm.amount), category:iForm.category, payment_date:iForm.date, notes:iForm.notes||null })
+    if (!iForm.amount) return
+    insert('payments',{ amount:Number(iForm.amount), category:iForm.category, client_id:iForm.client_id||null, payment_date:iForm.date, notes:iForm.notes||null })
     logActivity('Payment recorded','payment',`${formatCurrency(Number(iForm.amount))} — ${iForm.category}`)
-    setShowIncome(false); setIForm({ amount:'', category:'Client Payment', date:new Date().toISOString().split('T')[0], notes:'' })
+    setShowIncome(false)
+    setIForm({ amount:'', category:'Client Payment', client_id:'', date:new Date().toISOString().split('T')[0], notes:'' })
     load(); window.dispatchEvent(new Event('ragon-data-update'))
   }
 
   function saveExpense() {
+    if (!eForm.amount || !eForm.description) return
     insert('expenses',{ amount:Number(eForm.amount), category:eForm.category, description:eForm.description, date:eForm.date })
     logActivity('Expense recorded','expense',`${formatCurrency(Number(eForm.amount))} — ${eForm.description}`)
-    setShowExpense(false); setEForm({ amount:'', category:'Other', description:'', date:new Date().toISOString().split('T')[0] })
+    setShowExpense(false)
+    setEForm({ amount:'', category:'Other', description:'', date:new Date().toISOString().split('T')[0] })
+    load(); window.dispatchEvent(new Event('ragon-data-update'))
+  }
+
+  function deletePayment(id:string, amount:number) {
+    if (!confirm(`Delete this payment of ${formatCurrency(amount)}?`)) return
+    remove('payments', id)
+    logActivity('Payment deleted','payment')
+    load(); window.dispatchEvent(new Event('ragon-data-update'))
+  }
+
+  function deleteExpense(id:string, desc:string) {
+    if (!confirm(`Delete expense "${desc}"?`)) return
+    remove('expenses', id)
+    logActivity('Expense deleted','expense',desc)
     load(); window.dispatchEvent(new Event('ragon-data-update'))
   }
 
@@ -58,7 +78,7 @@ export default function MoneyPage() {
 
   return (
     <div>
-      <Header title="Money" />
+      <Header title="Money"/>
       <div className="p-5 space-y-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -79,31 +99,50 @@ export default function MoneyPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-5">
+          {/* Income */}
           <div className="rounded-lg border border-slate-800 bg-slate-900">
             <div className="px-4 py-3 border-b border-slate-800"><p className="text-sm font-semibold text-slate-200">Income ({payments.length} records)</p></div>
-            {incomeByCategory.length>0&&<div className="px-4 py-3 border-b border-slate-800"><ResponsiveContainer width="100%" height={100}><BarChart data={incomeByCategory}><XAxis dataKey="name" tick={{fill:'#64748b',fontSize:10}} axisLine={false} tickLine={false}/><YAxis hide/><Tooltip contentStyle={{background:'#0f172a',border:'1px solid #1e293b',borderRadius:6,fontSize:11}} formatter={(v:unknown)=>formatCurrency(Number(v))}/><Bar dataKey="value" fill="#6366f1" radius={[3,3,0,0]}/></BarChart></ResponsiveContainer></div>}
-            <div className="divide-y divide-slate-800 max-h-64 overflow-y-auto">
-              {payments.length===0?<p className="px-4 py-6 text-center text-sm text-slate-600">No income recorded</p>
-              :payments.map(p=>(
-                <div key={p.id} className="flex items-center justify-between px-4 py-2.5">
-                  <div><p className="text-sm font-medium text-emerald-400">{formatCurrency(p.amount)}</p><p className="text-xs text-slate-500">{p.category}{p.notes?` • ${p.notes}`:''}</p></div>
-                  <span className="text-xs text-slate-600">{formatDate(p.payment_date)}</span>
-                </div>
-              ))}
+            {incomeByCategory.length>0&&<div className="px-4 py-3 border-b border-slate-800"><ResponsiveContainer width="100%" height={90}><BarChart data={incomeByCategory}><XAxis dataKey="name" tick={{fill:'#64748b',fontSize:10}} axisLine={false} tickLine={false}/><YAxis hide/><Tooltip contentStyle={{background:'#0f172a',border:'1px solid #1e293b',borderRadius:6,fontSize:11}} formatter={(v:unknown)=>formatCurrency(Number(v))}/><Bar dataKey="value" fill="#6366f1" radius={[3,3,0,0]}/></BarChart></ResponsiveContainer></div>}
+            <div className="divide-y divide-slate-800 max-h-72 overflow-y-auto">
+              {payments.length===0
+                ? <p className="px-4 py-6 text-center text-sm text-slate-600">No income recorded</p>
+                : payments.map(p=>{
+                  const client = clients.find(c=>c.id===p.client_id)
+                  return (
+                    <div key={p.id} className="flex items-center justify-between px-4 py-2.5 group hover:bg-slate-800/40">
+                      <div>
+                        <p className="text-sm font-medium text-emerald-400">{formatCurrency(p.amount)}</p>
+                        <p className="text-xs text-slate-500">{p.category}{client?` — ${client.name}`:''}{p.notes?` • ${p.notes}`:''}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600">{formatDate(p.payment_date)}</span>
+                        <button onClick={()=>deletePayment(p.id,p.amount)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700 transition-all"><Trash2 className="h-3.5 w-3.5"/></button>
+                      </div>
+                    </div>
+                  )
+                })}
             </div>
           </div>
 
+          {/* Expenses */}
           <div className="rounded-lg border border-slate-800 bg-slate-900">
             <div className="px-4 py-3 border-b border-slate-800"><p className="text-sm font-semibold text-slate-200">Expenses ({expenses.length} records)</p></div>
-            {expenseByCategory.length>0&&<div className="px-4 py-3 border-b border-slate-800"><ResponsiveContainer width="100%" height={100}><BarChart data={expenseByCategory}><XAxis dataKey="name" tick={{fill:'#64748b',fontSize:10}} axisLine={false} tickLine={false}/><YAxis hide/><Tooltip contentStyle={{background:'#0f172a',border:'1px solid #1e293b',borderRadius:6,fontSize:11}} formatter={(v:unknown)=>formatCurrency(Number(v))}/><Bar dataKey="value" fill="#ef4444" radius={[3,3,0,0]}/></BarChart></ResponsiveContainer></div>}
-            <div className="divide-y divide-slate-800 max-h-64 overflow-y-auto">
-              {expenses.length===0?<p className="px-4 py-6 text-center text-sm text-slate-600">No expenses recorded</p>
-              :expenses.map(e=>(
-                <div key={e.id} className="flex items-center justify-between px-4 py-2.5">
-                  <div><p className="text-sm font-medium text-red-400">{formatCurrency(e.amount)}</p><p className="text-xs text-slate-500">{e.category} • {e.description}</p></div>
-                  <span className="text-xs text-slate-600">{formatDate(e.date)}</span>
-                </div>
-              ))}
+            {expenseByCategory.length>0&&<div className="px-4 py-3 border-b border-slate-800"><ResponsiveContainer width="100%" height={90}><BarChart data={expenseByCategory}><XAxis dataKey="name" tick={{fill:'#64748b',fontSize:10}} axisLine={false} tickLine={false}/><YAxis hide/><Tooltip contentStyle={{background:'#0f172a',border:'1px solid #1e293b',borderRadius:6,fontSize:11}} formatter={(v:unknown)=>formatCurrency(Number(v))}/><Bar dataKey="value" fill="#ef4444" radius={[3,3,0,0]}/></BarChart></ResponsiveContainer></div>}
+            <div className="divide-y divide-slate-800 max-h-72 overflow-y-auto">
+              {expenses.length===0
+                ? <p className="px-4 py-6 text-center text-sm text-slate-600">No expenses recorded</p>
+                : expenses.map(e=>(
+                  <div key={e.id} className="flex items-center justify-between px-4 py-2.5 group hover:bg-slate-800/40">
+                    <div>
+                      <p className="text-sm font-medium text-red-400">{formatCurrency(e.amount)}</p>
+                      <p className="text-xs text-slate-500">{e.category} • {e.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600">{formatDate(e.date)}</span>
+                      <button onClick={()=>deleteExpense(e.id,e.description)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700 transition-all"><Trash2 className="h-3.5 w-3.5"/></button>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         </div>
@@ -113,9 +152,16 @@ export default function MoneyPage() {
         <div className="space-y-3">
           <div><Label>Amount ($) *</Label><Input type="number" value={iForm.amount} onChange={e=>setIForm(f=>({...f,amount:e.target.value}))}/></div>
           <div><Label>Category</Label><Select value={iForm.category} onChange={e=>setIForm(f=>({...f,category:e.target.value}))}>{INCOME_CATS.map(c=><option key={c}>{c}</option>)}</Select></div>
+          <div><Label>Client (optional)</Label>
+            <Select value={iForm.client_id} onChange={e=>setIForm(f=>({...f,client_id:e.target.value}))}>
+              <option value="">No client</option>
+              {clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </div>
           <div><Label>Date</Label><Input type="date" value={iForm.date} onChange={e=>setIForm(f=>({...f,date:e.target.value}))}/></div>
           <div><Label>Notes</Label><Input value={iForm.notes} onChange={e=>setIForm(f=>({...f,notes:e.target.value}))}/></div>
-          <div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={()=>setShowIncome(false)}>Cancel</Button><Button onClick={saveIncome}>Save</Button></div>
+          <p className="text-xs text-slate-600">💡 Selecting a client will update their Lifetime Revenue automatically.</p>
+          <div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={()=>setShowIncome(false)}>Cancel</Button><Button onClick={saveIncome}>Save Income</Button></div>
         </div>
       </Modal>
 
@@ -125,7 +171,7 @@ export default function MoneyPage() {
           <div><Label>Amount ($) *</Label><Input type="number" value={eForm.amount} onChange={e=>setEForm(f=>({...f,amount:e.target.value}))}/></div>
           <div><Label>Category</Label><Select value={eForm.category} onChange={e=>setEForm(f=>({...f,category:e.target.value}))}>{EXPENSE_CATS.map(c=><option key={c}>{c}</option>)}</Select></div>
           <div><Label>Date</Label><Input type="date" value={eForm.date} onChange={e=>setEForm(f=>({...f,date:e.target.value}))}/></div>
-          <div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={()=>setShowExpense(false)}>Cancel</Button><Button onClick={saveExpense}>Save</Button></div>
+          <div className="flex justify-end gap-2 pt-2"><Button variant="secondary" onClick={()=>setShowExpense(false)}>Cancel</Button><Button onClick={saveExpense}>Save Expense</Button></div>
         </div>
       </Modal>
     </div>

@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getAll, insert, update, logActivity } from '@/lib/store'
+import { getAll, insert, update, remove, logActivity } from '@/lib/store'
 import { Header } from '@/components/layout/header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Plus, FileText, AlertCircle } from 'lucide-react'
+import { Plus, FileText, AlertCircle, Trash2 } from 'lucide-react'
 
 const STATUSES = ['Draft','Sent','Pending','Paid','Overdue','Cancelled']
 
@@ -42,6 +42,12 @@ export default function InvoicesPage() {
     update('invoices',inv.id,{ status:'Paid', payment_date:today })
     insert('payments',{ amount:inv.amount, currency:inv.currency||'USD', payment_date:today, category:'Client Payment', client_id:inv.client_id||null, invoice_id:inv.id })
     logActivity('Invoice marked paid','invoice',inv.invoice_number)
+    load(); window.dispatchEvent(new Event('ragon-data-update'))
+  }
+
+  function deleteInvoice(id:string, num:string) {
+    if (!confirm(`Delete invoice ${num}?`)) return
+    remove('invoices', id); logActivity('Invoice deleted','invoice',num)
     load(); window.dispatchEvent(new Event('ragon-data-update'))
   }
 
@@ -87,6 +93,7 @@ export default function InvoicesPage() {
                     <td className="px-4 py-3 text-right"><div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100">
                       {!['Paid','Cancelled'].includes(inv.status)&&<button onClick={()=>markPaid(inv)} className="px-2 py-1 rounded text-xs text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20">Mark Paid</button>}
                       <button onClick={()=>openEdit(inv)} className="p-1.5 rounded text-slate-500 hover:text-slate-300 hover:bg-slate-700"><svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button>
+                      <button onClick={()=>deleteInvoice(inv.id,inv.invoice_number)} className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-slate-700"><Trash2 className="h-3.5 w-3.5"/></button>
                     </div></td>
                   </tr>
                 )

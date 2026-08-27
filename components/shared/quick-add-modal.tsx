@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
@@ -23,6 +23,14 @@ const actions = [
 export function QuickAddModal({ open, onClose }: Props) {
   const [action, setAction] = useState<Action>(null)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [clients, setClients] = useState<any[]>([])
+
+  useEffect(() => {
+    if (open) {
+      const { getAll } = require('@/lib/store')
+      setClients(getAll('clients'))
+    }
+  }, [open])
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -40,7 +48,7 @@ export function QuickAddModal({ open, onClose }: Props) {
       insert('tasks', { title: form.title, priority: form.priority||'Medium', status: 'Todo', category: 'Admin', due_date: form.due_date||null, description: null })
       logActivity('Task created', 'task', form.title)
     } else if (action === 'payment') {
-      insert('payments', { amount: Number(form.amount), category: form.category||'Client Payment', payment_date: form.date||new Date().toISOString().split('T')[0], notes: form.notes||null })
+      insert('payments', { amount: Number(form.amount), category: form.category||'Client Payment', client_id: form.client_id||null, payment_date: form.date||new Date().toISOString().split('T')[0], notes: form.notes||null })
       logActivity('Payment recorded', 'payment', `$${form.amount}`)
     } else if (action === 'expense') {
       insert('expenses', { amount: Number(form.amount), category: form.category||'Other', description: form.description, date: form.date||new Date().toISOString().split('T')[0] })
@@ -94,6 +102,7 @@ export function QuickAddModal({ open, onClose }: Props) {
             <div><Label>Due Date</Label><Input type="date" value={form.due_date||''} onChange={e=>set('due_date',e.target.value)} /></div>
           </>}
           {action === 'payment' && <>
+            <div><Label>Client (optional)</Label><select className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500" value={form.client_id||''} onChange={e=>set('client_id',e.target.value)}><option value="">No client</option>{clients.map((c:any)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
             <div><Label>Amount ($) *</Label><Input type="number" value={form.amount||''} onChange={e=>set('amount',e.target.value)} /></div>
             <div><Label>Category</Label><Select value={form.category||'Client Payment'} onChange={e=>set('category',e.target.value)}><option>Client Payment</option><option>Fiverr</option><option>Upwork</option><option>UGC</option><option>Other</option></Select></div>
             <div><Label>Date</Label><Input type="date" value={form.date||new Date().toISOString().split('T')[0]} onChange={e=>set('date',e.target.value)} /></div>

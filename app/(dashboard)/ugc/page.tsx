@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getAll, insert, update, logActivity } from '@/lib/store'
+import { getAll, insert, update, remove, logActivity } from '@/lib/store'
 import { Header } from '@/components/layout/header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Plus, Video, TrendingUp } from 'lucide-react'
+import { Plus, Video, TrendingUp, Trash2 } from 'lucide-react'
 
 const STATUSES = ['Planned','Shooting','Editing','Delivered','Completed']
 
@@ -30,6 +30,12 @@ export default function UGCPage() {
     if (editing) { update('ugc_shoots',editing.id,data); logActivity('UGC shoot updated','ugc') }
     else { insert('ugc_shoots',data); logActivity('UGC shoot created','ugc') }
     setShowModal(false); load(); window.dispatchEvent(new Event('ragon-data-update'))
+  }
+
+  function deletShoot(id:string) {
+    if (!confirm('Delete this shoot?')) return
+    remove('ugc_shoots', id); logActivity('UGC shoot deleted','ugc')
+    load(); window.dispatchEvent(new Event('ragon-data-update'))
   }
 
   const totalRevenue = shoots.reduce((s:number,sh:any)=>s+Number(sh.revenue||0),0)
@@ -64,7 +70,10 @@ export default function UGCPage() {
                     <div className="rounded-lg bg-indigo-500/10 p-2"><Video className="h-4 w-4 text-indigo-400"/></div>
                     <div><p className="text-sm font-semibold text-slate-200">{client?.name||'No client'}</p><p className="text-xs text-slate-500">{s.studio||'No studio'} • {formatDate(s.shoot_date)}</p></div>
                   </div>
-                  <Badge status={s.status}>{s.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge status={s.status}>{s.status}</Badge>
+                    <button onClick={e=>{e.stopPropagation();deletShoot(s.id)}} className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700"><Trash2 className="h-3.5 w-3.5"/></button>
+                  </div>
                 </div>
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1"><p className="text-xs text-slate-500">Progress</p><p className="text-xs text-slate-400">{s.videos_edited}/{s.videos_planned} edited</p></div>

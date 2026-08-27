@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { getAll, insert, logActivity } from '@/lib/store'
+import { getAll, insert, remove, logActivity } from '@/lib/store'
 import { Header } from '@/components/layout/header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { Input, Label, Select, Textarea } from '@/components/ui/input'
 import { formatDate } from '@/lib/utils'
-import { Plus, Send, Bell } from 'lucide-react'
+import { Plus, Send, Bell, Trash2 } from 'lucide-react'
 
 export default function OutreachPage() {
   const [records, setRecords] = useState<any[]>([])
@@ -29,7 +29,12 @@ export default function OutreachPage() {
 
   function saveOutreach() {
     if (!form.lead_id) return
-    const today = new Date().toISOString().split('T')[0]
+    function deleteRecord(id:string) {
+    if (!confirm('Delete this outreach record?')) return
+    remove('outreach', id); load()
+  }
+
+  const today = new Date().toISOString().split('T')[0]
     insert('outreach',{ lead_id:form.lead_id, campaign_id:form.campaign_id||null, first_contact:today, last_contact:today, next_followup:form.next_followup||null, status:form.status, notes:form.notes||null, attempts:1 })
     logActivity('Outreach logged','outreach')
     setShowModal(false); setForm({ lead_id:'', campaign_id:'', status:'Sent', next_followup:'', notes:'' })
@@ -40,6 +45,11 @@ export default function OutreachPage() {
     insert('outreach_campaigns',{ name:cForm.name, description:cForm.description||null, status:cForm.status })
     setShowCampaign(false); setCForm({ name:'', description:'', status:'Active' })
     load()
+  }
+
+  function deleteRecord(id:string) {
+    if (!confirm('Delete this outreach record?')) return
+    remove('outreach', id); load()
   }
 
   const today = new Date().toISOString().split('T')[0]
@@ -93,7 +103,7 @@ export default function OutreachPage() {
           </div>
           <table className="w-full">
             <thead><tr className="border-b border-slate-800">
-              {['Lead','Campaign','Status','Attempts','Last Contact','Next Follow-up'].map(h=><th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">{h}</th>)}
+              {['Lead','Campaign','Status','Attempts','Last Contact','Next Follow-up',''].map(h=><th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-slate-800">
               {records.length===0?<tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-600">No outreach logged yet</td></tr>
@@ -108,6 +118,7 @@ export default function OutreachPage() {
                     <td className="px-4 py-3 text-sm text-slate-400">{r.attempts}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{formatDate(r.last_contact)}</td>
                     <td className="px-4 py-3"><span className={`text-sm ${r.next_followup&&r.next_followup<=today?'text-yellow-400 font-medium':'text-slate-500'}`}>{formatDate(r.next_followup)}</span></td>
+                    <td className="px-4 py-3"><button onClick={()=>deleteRecord(r.id)} className="p-1.5 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700"><Trash2 className="h-3.5 w-3.5"/></button></td>
                   </tr>
                 )
               })}
