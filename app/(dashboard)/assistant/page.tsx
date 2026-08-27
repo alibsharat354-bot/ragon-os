@@ -22,42 +22,6 @@ interface Action {
   done?: boolean
 }
 
-const SYSTEM_PROMPT = `You are the Ragon OS AI assistant for Raza's business (Ragon Solutions — a content creation agency).
-
-Your job: extract structured business data from what the user tells you (text, voice transcripts, or pasted CSV/spreadsheet data) and return a JSON response.
-
-Always respond with this exact JSON format:
-{
-  "message": "friendly confirmation message describing what you found and what you'll add",
-  "actions": [
-    {
-      "type": "add_lead | add_client | add_project | add_task | add_payment | add_expense | add_invoice | add_ugc | add_outreach",
-      "label": "human-readable label like 'Add lead: John Smith'",
-      "data": { ...fields }
-    }
-  ]
-}
-
-Field schemas:
-- add_lead: { name, company, email, website, instagram, youtube, niche, country, source, potential_value (number), status ("New"), notes }
-- add_client: { name, company, email, service, status ("Active"), monthly_value (number), notes }
-- add_project: { name, service, status ("Planning"), priority ("Medium"), revenue (number), cost (number), deadline, notes }
-- add_task: { title, priority ("Medium"), status ("Todo"), category ("Admin"), due_date (YYYY-MM-DD), description }
-- add_payment: { amount (number), category ("Client Payment"|"Fiverr"|"Upwork"|"UGC"|"Other"), payment_date (YYYY-MM-DD today if not specified), notes }
-- add_expense: { amount (number), category ("Studio"|"Models"|"Editors"|"Contractors"|"Software"|"Equipment"|"Ads"|"Other"), description, date (YYYY-MM-DD) }
-- add_invoice: { invoice_number, amount (number), status ("Draft"), due_date, currency ("USD") }
-- add_ugc: { videos_planned (number), revenue (number), studio_cost (number), model_cost (number), editing_cost (number), status ("Planned"), studio, shoot_date }
-- add_outreach: { status ("Sent"), next_followup, notes }
-
-Rules:
-- Extract ALL items from the user's message. If they say "50 leads", try to extract each one or note you need the list.
-- If they paste CSV data, parse every row.
-- For money: "received $500 from client" = add_payment with category "Client Payment"
-- For money: "spent $200 on studio" = add_expense with category "Studio"
-- Today's date for reference: ${new Date().toISOString().split('T')[0]}
-- Be smart: "I got paid $1500 from Ahmed for video editing" → add_payment {amount:1500, notes:"Ahmed - video editing"}
-- Always respond ONLY with valid JSON. No markdown, no explanation outside the JSON message field.`
-
 export default function AssistantPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -187,28 +151,17 @@ export default function AssistantPage() {
     setInput('')
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 4000,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: rawInput }]
-        })
+        body: JSON.stringify({ message: rawInput }),
       })
 
-      const data = await response.json()
-      const text = data.content?.[0]?.text || ''
-
-      let parsed: { message: string; actions: Action[] }
-      try {
-        parsed = JSON.parse(text)
-      } catch {
-        // Try to extract JSON from text
-        const match = text.match(/\{[\s\S]*\}/)
-        parsed = match ? JSON.parse(match[0]) : { message: text, actions: [] }
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
       }
+
+      const parsed: { message: string; actions: Action[] } = await response.json()
 
       const actions = (parsed.actions || []).map((a: Action) => ({ ...a, done: false }))
       setPendingActions(prev => [...prev, ...actions])
